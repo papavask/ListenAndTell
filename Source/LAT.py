@@ -84,3 +84,5 @@ async def start_listen():
 
 
 await start_listen()
+if __name__ == "__main__":
+    start_listen()
