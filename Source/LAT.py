@@ -20,6 +20,7 @@ def song_to_dict(song_info):
         'station': song_info.station,
         'title': song_info.title,
         'artist': song_info.artist
+    }
 
 
 def cnv_audio(in_file, out_file):
