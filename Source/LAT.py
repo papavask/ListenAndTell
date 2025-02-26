@@ -83,6 +83,5 @@ async def start_listen():
                     prev_song = sample_song     
 
 
-await start_listen()
 if __name__ == "__main__":
     start_listen()
