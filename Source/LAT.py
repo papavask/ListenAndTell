@@ -24,24 +24,52 @@ def song_to_dict(song_info):
 
 
 def cnv_audio(in_file, out_file):
-    print(in_file, out_file)
+    #print(in_file, out_file)
     extract_audio(input_path=in_file,
                   output_path=out_file,
                   overwrite=True)   
 
-def read_sample(stream_url, buffer_file):
+def read_sample2(stream_url, buffer_file):
     i = 1
     try:
-        with requests.get(stream_url, stream=True, timeout=5.0) as response:
+        with requests.get(stream_url, stream=True, timeout=3.0) as response:
+            print("Size:", response.request.headers['Content-Length'])
             with open(buffer_file, 'wb') as sample_file:
                 for chunk in response.iter_content(chunk_size=10000):
-                    if  i > 100:
+                    if  i > 200:
                         break
                     sample_file.write(chunk)
                     i+=1
         return True
     except Exception as err:
         print(f"Unexpected {err=}, {type(err)=}") 
+        return False
+
+
+def read_sample(stream_url, buffer_file):
+    i = 1
+    try:
+        # Increase timeout or remove it if necessary
+        with requests.get(stream_url, stream=True, timeout=10.0) as response:
+            if response.status_code == 200:
+                #print("Size:", response.request.headers['Content-Length'])
+                with open(buffer_file, 'wb') as sample_file:
+                    for chunk in response.iter_content(chunk_size=10000):
+                        if chunk:  # Filter out keep-alive new chunks
+                            if i %20 == 0: print("i=",i)
+                            if i > 150:
+                                break
+                            sample_file.write(chunk)
+                            i += 1
+                return True
+            else:
+                print(f"Failed to retrieve stream: HTTP {response.status_code}")
+                return False
+    except requests.exceptions.RequestException as err:
+        print(f"Request failed: {err}")
+        return False
+    except Exception as err:
+        print(f"Unexpected error: {err}")
         return False
 
 async def shazam_it(music_file):
@@ -56,23 +84,32 @@ def add_it_to_db(db_name, a_song):
 
 async def start_listen():
     file_for_buffer = r"./buffer.aac"
+    file_for_buffer = r"./buffer.mp3"
     file_for_mp3 = r"./buffer.mp3"
+
+    station = "RockFM"
+    live_url = "https://az10.yesstreaming.net/radio/8060/radio.mp3"
+
+    station = "STAR FM Rock Ballads"
+    live_url = "https://stream.starfm.de/ballads/mp3-128/"    
 
     station = "Trito"
     live_url = "http://radiostreaming.ert.gr/ert-trito"
-    station = "STAR FM Rock Ballads"
-    live_url = "https://stream.starfm.de/ballads/mp3-128/"
-    station = "RockFM"
-    live_url = "https://az10.yesstreaming.net/radio/8060/radio.mp3"
-    
+
     prev_song = ""
     prev_artist = ""
+    print("Start listen\n")
     while True:
+        print("bp001")
         sample = read_sample(live_url, file_for_buffer)
+        print("bp002")
         if sample:
-            cnv_audio(file_for_buffer, file_for_mp3)
-            shazam_chars = await shazam_it(file_for_mp3)
-            print(len(shazam_chars["matches"]))
+            #cnv_audio(file_for_buffer, file_for_mp3)
+            #shazam_chars = await shazam_it(file_for_mp3)
+            print("bp003")
+            shazam_chars = await shazam_it(file_for_buffer)
+            print("bp004")
+            #print(len(shazam_chars["matches"]))
             if len(shazam_chars["matches"]) != 0:
                 sample_song = shazam_chars['track']['title']
                 sample_artist = shazam_chars['track']['subtitle']
@@ -83,5 +120,8 @@ async def start_listen():
                     prev_song = sample_song     
 
 
+
 if __name__ == "__main__":
-    start_listen()
+    #asyncio.run(start_listen())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_listen())
