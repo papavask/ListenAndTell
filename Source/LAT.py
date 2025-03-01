@@ -5,7 +5,24 @@ import warnings
 warnings.filterwarnings("ignore")
 import asyncio
 from shazamio import Shazam
-from audio_extract import extract_audio
+#from audio_extract import extract_audio
+import ffmpeg as ff
+import time as tm
+import pandas as pd
+import sys
+
+def convert_to_wav2(input_file, output_file):
+    print(f"Conver {input_file} to {output_file}")
+    ff.input(input_file).output(output_file, format='wav').run(overwrite_output=True)
+    
+def convert_to_wav(input_file, output_file):
+    ff.input(input_file).output(output_file, format="wav").run(
+        overwrite_output=True,
+        quiet=True,  # Suppresses most output
+        capture_stdout=True,  # Captures stdout (removes printed messages)
+        capture_stderr=True   # Captures stderr (removes warnings/errors)
+    )
+
 
 class Song_Info:
     def __init__(self, station, title, artist):
@@ -23,11 +40,11 @@ def song_to_dict(song_info):
     }
 
 
-def cnv_audio(in_file, out_file):
+#def cnv_audio(in_file, out_file):
     #print(in_file, out_file)
-    extract_audio(input_path=in_file,
-                  output_path=out_file,
-                  overwrite=True)   
+    #extract_audio(input_path=in_file,
+    #              output_path=out_file,
+    #              overwrite=True)   
 
 def read_sample2(stream_url, buffer_file):
     i = 1
@@ -56,8 +73,7 @@ def read_sample(stream_url, buffer_file):
                 with open(buffer_file, 'wb') as sample_file:
                     for chunk in response.iter_content(chunk_size=10000):
                         if chunk:  # Filter out keep-alive new chunks
-                            if i %20 == 0: print("i=",i)
-                            if i > 150:
+                            if i > 100:
                                 break
                             sample_file.write(chunk)
                             i += 1
@@ -82,33 +98,24 @@ def add_it_to_db(db_name, a_song):
         json.dump(a_song, db_file, default=song_to_dict)
         db_file.write('\n')
 
-async def start_listen():
+async def start_listen(station, live_url):
     file_for_buffer = r"./buffer.aac"
     file_for_buffer = r"./buffer.mp3"
-    file_for_mp3 = r"./buffer.mp3"
-
-    station = "RockFM"
-    live_url = "https://az10.yesstreaming.net/radio/8060/radio.mp3"
-
-    station = "STAR FM Rock Ballads"
-    live_url = "https://stream.starfm.de/ballads/mp3-128/"    
-
-    station = "Trito"
-    live_url = "http://radiostreaming.ert.gr/ert-trito"
+    file_for_buffer = r"./buffer.mp3"
+    file_for_mp3 = r".\buffer.mp3"
+    output_file = r"./buffer.wav"
 
     prev_song = ""
     prev_artist = ""
-    print("Start listen\n")
+    print(f"Start listen {station} on {live_url}\n")
     while True:
-        print("bp001")
         sample = read_sample(live_url, file_for_buffer)
-        print("bp002")
         if sample:
             #cnv_audio(file_for_buffer, file_for_mp3)
             #shazam_chars = await shazam_it(file_for_mp3)
-            print("bp003")
-            shazam_chars = await shazam_it(file_for_buffer)
-            print("bp004")
+            convert_to_wav(file_for_buffer, output_file)
+            shazam_chars = await shazam_it(output_file)
+            #tm.sleep(15)
             #print(len(shazam_chars["matches"]))
             if len(shazam_chars["matches"]) != 0:
                 sample_song = shazam_chars['track']['title']
@@ -119,9 +126,22 @@ async def start_listen():
                     print('Added ' + song.title, song.artist)
                     prev_song = sample_song     
 
-
+def get_params() -> str:
+    file_path = "C:/Users/papav/Documents/Python/Mus01/Data/StationList.csv"
+    data = pd.read_csv(file_path, sep=",")
+    n = len(sys.argv)
+    if n != 2:
+        sys.exit(f"Usage: pytohn {sys.argv[0]} n n:=0...max stations({len(data)-1} for the current available list)")
+    StationNo = "0" if n == 1 else sys.argv[1]
+    if not StationNo.isnumeric() or int(StationNo) > len(data)-1 or int(StationNo) < 0:
+        sys.exit("Enter a station from 0 to "+str(len(data)-1))  
+    surl = data.iloc[int(StationNo), 2].strip()
+    snam = data.iloc[int(StationNo), 0].strip()
+    return surl,snam
+        
 
 if __name__ == "__main__":
     #asyncio.run(start_listen())
+    url_str, radio_station = get_params()
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(start_listen())
+    loop.run_until_complete(start_listen(radio_station, url_str))
